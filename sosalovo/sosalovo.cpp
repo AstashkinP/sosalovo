@@ -1,4 +1,4 @@
-﻿//kasjbdnksdjasdwasdwa﻿
+//kasjbdnksdjasdwasdwa?
 #include "framework.h"
 #include "sosalovo.h"
 #include <iostream>
@@ -31,16 +31,16 @@ struct {
 
 bool gameAction = false;
 
-//HBITMAP hBack;// хэндл для фонового изображения
+//HBITMAP hBack;// ????? ??? ???????? ???????????
 
 sprite blocks[ROWS][COLUMN];
 
 //#define MAX_LOADSTRING 100
 
-// Глобальные переменные:
-//HINSTANCE hInst;                                // текущий экземпляр
-//WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
-//WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
+// ?????????? ??????????:
+//HINSTANCE hInst;                                // ??????? ?????????
+//WCHAR szTitle[MAX_LOADSTRING];                  // ????? ?????? ?????????
+//WCHAR szWindowClass[MAX_LOADSTRING];            // ??? ?????? ???????? ????
 
 void InitGame()
 {
@@ -60,15 +60,15 @@ void InitGame()
     ball.width = 20;
     ball.x = racket.x + racket.width / 2;
     ball.y = racket.y - ball.height;
-    ball.dy = (35 + rand() % 65) / 100.;
-    ball.dx = ball.dy - 1;
+    ball.dx = (-65 + rand() % 130) / 65.;
+    ball.dy = 1 - abs(ball.dx);
 
     for (int i = 0; i < ROWS; i++) {
 
         for (int j = 0; j < COLUMN; j++) {
 
-            blocks[i][j].width = 40;
-            blocks[i][j].height = 40;
+            blocks[i][j].width = window.width / ROWS;
+            blocks[i][j].height = window.height / 2 / COLUMN;
             blocks[i][j].hBitmap = (HBITMAP)LoadImageA(NULL, "cube.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
             blocks[i][j].x = blocks[i][j].width * i;
             blocks[i][j].y = blocks[i][j].height * j;
@@ -78,29 +78,50 @@ void InitGame()
     }
 }
 
-void InitWindow() { // инициализация структуры window
+void InitWindow() { // ????????????? ????????? window
 
     RECT r;
     GetClientRect(window.hWnd, &r);
+    window.device_context = GetDC(window.hWnd);
     window.width = r.right - r.left;
     window.height = r.bottom - r.top;
-
+    window.context = CreateCompatibleDC(window.device_context);
+    SelectObject(window.context, CreateCompatibleBitmap(window.device_context, window.width, window.height));
+    GetClientRect(window.hWnd, &r);
 
 }
 
 void ShowBitMap(HDC hDC, int x, int y, int w, int h, HBITMAP picture)
 {
-    window.context = CreateCompatibleDC(window.device_context);
+    HDC hMemDC;
+    hMemDC = CreateCompatibleDC(hDC);
 
-    BITMAP bm;
-    GetObject(picture, sizeof(BITMAP), &bm);
+    HBITMAP hOld = (HBITMAP)SelectObject(hMemDC, picture);
+    if (hOld) {
+        BITMAP bm;
+        GetObject(picture, sizeof(BITMAP), &bm);
 
-    HBITMAP hOld = (HBITMAP)SelectObject(window.context, picture);
-    StretchBlt(window.device_context, x, y, w, h, window.context, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
-    SelectObject(window.context, hOld);
+        StretchBlt(hDC, x, y, w, h, hMemDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+        SelectObject(hMemDC, hOld);
 
-    DeleteObject(hOld);
-    DeleteDC(window.context);
+        DeleteObject(hOld);
+    }
+    DeleteDC(hMemDC);
+}
+
+void Show()
+{
+    
+    ShowBitMap(window.context, 0, 0, window.width, window.height, window.hBack);
+    ShowBitMap(window.context, ball.x, ball.y, ball.width, ball.height, ball.hBitmap);
+    ShowBitMap(window.context, racket.x, racket.y, racket.width, racket.height, racket.hBitmap);
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMN; j++) {
+            ShowBitMap(window.context, blocks[i][j].x, blocks[i][j].y, blocks[i][j].width, blocks[i][j].height, blocks[i][j].hBitmap);
+        }
+    }
+
+    
 }
 
 void Obey()
@@ -139,11 +160,21 @@ void Collusion()
         ball.dx = ball.dy - 1;
         gameAction = false;
     }
+
+    if (racket.y < ball.y + ball.height && ball.x < racket.x + racket.width / 2) {
+        ball.dx += -0.5;
+        ball.dy *= -1;
+    }
+
+    if (racket.y < ball.y + ball.height && ball.x > racket.x + racket.width / 2) {
+        ball.dx += 0.5;
+        ball.dy *= -1;
+    }
+
 }
 
 void ProcessBall()
 {
-    //float length = 1 / sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
     ball.y -= ball.dy * ball.speed;
     ball.x += ball.dx * ball.speed;
 }
@@ -158,19 +189,8 @@ void ProcessGame()
     }
 }
 
-void Show()
-{
-    ShowBitMap(window.device_context, 0, 0, window.width, window.height, window.hBack);
-    ShowBitMap(window.device_context, ball.x, ball.y, ball.width, ball.height, ball.hBitmap);
-    ShowBitMap(window.device_context, racket.x, racket.y, racket.width, racket.height, racket.hBitmap);
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLUMN; j++) {
-            ShowBitMap(window.device_context, blocks[i][j].x, blocks[i][j].y, blocks[i][j].width, blocks[i][j].height, blocks[i][j].hBitmap);
-        }
-    }
-}
 
-// Отправить объявления функций, включенных в этот модуль кода:
+// ????????? ?????????? ???????, ?????????? ? ???? ?????? ????:
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -192,10 +212,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
         L"ABOBA",                       // Window text
-        WS_OVERLAPPEDWINDOW,            // Window style
+        WS_POPUP,            // Window style
 
         // Size and position
-        0, 0, CW_USEDEFAULT, CW_USEDEFAULT,
+        CW_USEDEFAULT, CW_USEDEFAULT, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
 
         NULL,       // Parent window    
         NULL,       // Menu
@@ -231,9 +251,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_TIMER:
 
-        if (wParam == 1) {
+        //if (wParam == 1) {
             ProcessGame();
-        }
+        //}
 
 
     case WM_KEYDOWN:
@@ -249,10 +269,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_DESTROY:
             PostQuitMessage(0);
-        if (GetAsyncKeyState(VK_ESCAPE)) {
-
-        }
-        return 0;
 
     case WM_SIZE:
     {
@@ -262,6 +278,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         racket.y = window.height - racket.height;
         ball.x = racket.x + racket.width / 2;
         ball.y = racket.y - ball.height;
+
         InvalidateRect(hwnd, 0, true);
     }
     case WM_PAINT:
@@ -271,6 +288,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         //FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
         Show();
+        BitBlt(window.device_context, 0, 0, window.width, window.height, window.context, 0, 0, SRCCOPY);
         EndPaint(hwnd, &ps);
     }
     return 0;
