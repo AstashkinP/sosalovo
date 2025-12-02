@@ -15,6 +15,7 @@
 typedef struct {
     float x, y, width, height, dx, dy, speed, pixelX, pixelY;
     bool ischezni;
+    bool ischezni2;
     HBITMAP hBitmap;
 } sprite;
 
@@ -101,10 +102,10 @@ void ShowBitMap(HDC hDC, int x, int y, int w, int h, HBITMAP picture)
     DeleteDC(hMemDC);
 }
 
-void Show()
+void colll(int i,int  j)
 {
-
-    for (int i = 0; i < 200; i++)
+    blocks[i][j].ischezni2 = true;
+    for (int z = 0; z < 200; z++)
     {
         float ics;
         float igrik;
@@ -117,19 +118,76 @@ void Show()
         koefX = ics / gipoz;
         koefY = igrik / gipoz;
 
-        float pixx = koefX * i + ball.x;
-        float pixy = koefY * -i + ball.y;
+        float pixx = koefX * z + ball.x;
+        float pixy = koefY * -z + ball.y;
+        ball.pixelX = pixx;
+        ball.pixelY = pixy;
+        
+        
+        if (
+            pixx > blocks[i][j].x &&
+            pixx < blocks[i][j].x + blocks[i][j].width && 
+            pixy > blocks[i][j].y &&
+            pixy < blocks[i][j].y + blocks[i][j].height
+            ) {
+            blocks[i][j].ischezni2 = false;
+            float L = blocks[i][j].x + blocks[i][j].width - ball.pixelX;
+            float R = ball.pixelX - blocks[i][j].x;
+            float U = blocks[i][j].y + blocks[i][j].height - ball.pixelY;
+            float D = ball.pixelY  - blocks[i][j].y;
 
-        SetPixel(window.device_context, pixx,pixy, RGB(255, 0, 0));
+            float owerX;
+            float owerY;
+            owerX = min(L, R);
+            owerY = min(U, D);
+
+            if (blocks[i][j].ischezni == true) {
+              
+                if (owerX < owerY) {
+                    if (L < R) {
+                        //ball.dx *= -1;
+                        blocks[i][j].ischezni;
+                    }
+
+                    if (R < L) {
+                        //ball.dx *= -1;
+                        blocks[i][j].ischezni;
+                    }
+                }
+
+                if (owerY < owerX) {
+                    if (U < D) {
+                        //ball.dy *= -1;
+                        blocks[i][j].ischezni;
+                    }
+
+                    if (D < U) {
+                        //ball.dy *= -1;
+                        blocks[i][j].ischezni;
+                    }
+                }
+            }
+            break;
+        }
+        else
+        {
+            SetPixel(window.device_context, pixx, pixy, RGB(255, 0, 0));
+        }
+
     }
+}
+
+void Show()
+{
+    
     ShowBitMap(window.context, 0, 0, window.width, window.height, window.hBack);
     ShowBitMap(window.context, ball.x, ball.y, ball.width, ball.height, ball.hBitmap);
     ShowBitMap(window.context, racket.x, racket.y, racket.width, racket.height, racket.hBitmap);
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMN; j++) {
             if (blocks[i][j].ischezni == true) {
+                colll(i, j);
                 ShowBitMap(window.context, blocks[i][j].x, blocks[i][j].y, blocks[i][j].width, blocks[i][j].height, blocks[i][j].hBitmap);
-
             }
         }
     }
@@ -143,6 +201,15 @@ void Obey()
 
     if (GetAsyncKeyState('A')) {
         racket.x -= racket.speed;
+    }
+}
+
+void GetCursorPos()
+{
+    POINT mousePos;
+    if (GetCursorPos(&mousePos)) {
+        ball.x = mousePos.x;
+        ball.y = mousePos.y;
     }
 }
 
@@ -188,52 +255,11 @@ void Collusion()
 
         for (int j = 0; j < COLUMN; j++) {
 
-            for (int z = 0; z < 100; z++) {
-                ball.pixelX = ball.x + ball.dx * z;
-                ball.pixelY = ball.y + ball.dy * -z;
-
-                if (blocks[i][j].x < ball.pixelX + ball.width && ball.pixelX < blocks[i][j].x + blocks[i][j].width && blocks[i][j].y < ball.pixelY + ball.height && ball.pixelY < blocks[i][j].y + blocks[i][j].height) {
-
-                    float L = blocks[i][j].x + blocks[i][j].width - ball.pixelX;
-                    float R = ball.pixelX + ball.width - blocks[i][j].x;
-                    float U = blocks[i][j].y + blocks[i][j].height - ball.pixelY;
-                    float D = ball.pixelY + ball.height - blocks[i][j].y;
-
-                    float owerX;
-                    float owerY;
-                    owerX = min(L, R);
-                    owerY = min(U, D);
-
-                    if (blocks[i][j].ischezni == true) {
-                        if (owerX < owerY) {
-                            if (L < R) {
-                                ball.dx *= -1;
-                                blocks[i][j].ischezni = false;
-                            }
-
-                            if (R < L) {
-                                ball.dx *= -1;
-                                blocks[i][j].ischezni = false;
-                            }
-                        }
-
-                        if (owerY < owerX) {
-                            if (U < D) {
-                                ball.dy *= -1;
-                                blocks[i][j].ischezni = false;
-                            }
-
-                            if (D < U) {
-                                ball.dy *= -1;
-                                blocks[i][j].ischezni = false;
-                            }
-                        }
-                    }
-                }
-            }
+           /* colll(i,j);*/
         }
     }
 }
+
 
 void ProcessBall()
 {
@@ -248,8 +274,11 @@ void ProcessGame()
         Obey();
         Collusion();
         ProcessBall();
+        GetCursorPos();
+
     }
 }
+
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -291,6 +320,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     InitWindow();
     InitGame();
     ShowWindow(window.hWnd, nCmdShow);
+    //Sleep(16);
     SetTimer(window.hWnd, 1, 16, NULL);
     // Run the message loop.
 
@@ -299,6 +329,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+
+       
     }
 
     return 0;
@@ -353,6 +385,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         Show();
         BitBlt(window.device_context, 0, 0, window.width, window.height, window.context, 0, 0, SRCCOPY);
         EndPaint(hwnd, &ps);
+        /*ProcessGame();*/
     }
     return 0;
 
