@@ -1,394 +1,318 @@
-//kasjbdnksdjasdwasdwa?
-#include "framework.h"
-#include "sosalovo.h"
-#include <iostream>
-#pragma comment (lib, "Msimg32.lib")
-#pragma comment (lib, "winmm.lib")
+﻿#include "Windows.h"
 #include <cmath>
 
-//#ifndef UNICODE
-#define UNICODE
-#define COLUMN 10
 #define ROWS 10
-//#endif 
+#define COLUMN 10
 
-typedef struct {
-    float x, y, width, height, dx, dy, speed, pixelX, pixelY;
-    bool ischezni;
-    bool ischezni2;
-    HBITMAP hBitmap;
-} sprite;
+//стурктура где храняться данные о windows окне
+struct
+{
+	//дескрипторы, контейнеры и буфферы для windows
+	RECT rc;
+	HINSTANCE hIns;
+	HWND hWnd;
+	HDC dev_cont, contx;
+	MSG msg;
+	BOOL gbool = true;
+	HBITMAP hBitmap;
+	//определяет размер экрана в вашей сиситеме
+	int width = GetSystemMetrics(SM_CXSCREEN), height = GetSystemMetrics(SM_CYSCREEN);
+} window;
+
+struct sprite
+{
+	float x, y, width, height, speed, dx, dy;
+	bool ischezni;
+	HBITMAP hBitmap;
+};
+
+//обработка потока сообщений
+static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_CLOSE:
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hWnd, msg, wParam, lParam);
+	}
+};
+
+//создания windows окна
+void InitWindow()
+{
+	//имя класса окна
+	const char* NameClass = "Window";
+
+	//размер окна
+	window.rc = { 0,0,window.width,window.height
+	};
+
+	//учет размера
+	AdjustWindowRect(&window.rc, WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU, FALSE);
+
+	//дескриптор класса окна
+	WNDCLASSEX wc = { 0 };
+	wc.cbSize = sizeof(wc);
+	wc.lpszClassName = NameClass;
+	wc.hInstance = window.hIns;
+	wc.lpfnWndProc = &WindowProc;
+
+	//регистрация класса окна
+	auto NameClassId = RegisterClassEx(&wc);
+
+	//деструктор окна
+	window.hWnd = CreateWindowEx(
+		NULL,
+		MAKEINTATOM(NameClassId),
+		"practicum5",
+		WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		window.rc.right - window.rc.left,
+		window.rc.bottom - window.rc.top,
+		NULL,
+		NULL,
+		window.hIns,
+		NULL
+	);
+
+	//показ окна
+	ShowWindow(window.hWnd, SW_SHOW);
+}
+
+//отрисовка изображений .bmp
+void ShowBitmap(HDC hDC, int x, int y, int x1, int y1, HBITMAP hBitmapBall)
+{
+	HBITMAP hbm, hOldbm;
+	HDC hMemDC;
+	BITMAP bm;
+
+	hMemDC = CreateCompatibleDC(hDC);
+	hOldbm = (HBITMAP)SelectObject(hMemDC, hBitmapBall);
+
+	if (hOldbm)
+	{
+		GetObject(hBitmapBall, sizeof(BITMAP), (LPSTR)&bm);
+		StretchBlt(hDC, x, y, x1, y1, hMemDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+		SelectObject(hMemDC, hOldbm);
+	}
+
+	DeleteDC(hMemDC);
+}
 
 sprite ball;
 sprite racket;
-sprite cube;
-
-struct {
-    HWND hWnd;
-    HDC device_context, context;
-    int width, height;
-    HBITMAP hBack;
-} window;
-
-bool gameAction = false;
-
 sprite blocks[ROWS][COLUMN];
 
-void InitGame()
+
+
+//загрузка модулей приложения
+void InitApp()
 {
+	window.dev_cont = GetDC(window.hWnd);
+	window.contx = CreateCompatibleDC(window.dev_cont);
+	SelectObject(window.contx, CreateCompatibleBitmap(window.dev_cont, window.width, window.height));
 
-    racket.hBitmap = (HBITMAP)LoadImageA(NULL, "racket.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-    ball.hBitmap = (HBITMAP)LoadImageA(NULL, "ball.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+	racket.hBitmap = (HBITMAP)LoadImageA(NULL, "racket.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+	ball.hBitmap = (HBITMAP)LoadImageA(NULL, "ball.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+	//----------------------------------------------------------------------------------------------
+	racket.speed = 20;
+	racket.height = 20;
+	racket.width = 200;
+	racket.x = window.width / 2 - racket.width / 2;
+	racket.y = window.height - racket.height;
 
-    //----------------------------------------------------------------------------------------------
-    racket.speed = 20;
-    racket.height = 20;
-    racket.width = 200;
-    racket.x = window.width / 2 - racket.width / 2;
-    racket.y = window.height - racket.height;
+	ball.speed = 10;
+	ball.height = 20;
+	ball.width = 20;
+	ball.x = racket.x + racket.width / 2;
+	ball.y = racket.y - ball.height;
+	ball.dx = (-65 + rand() % 130) / 65.;
+	ball.dy = 1 - abs(ball.dx);
 
-    ball.speed = 10;
-    ball.height = 20;
-    ball.width = 20;
-    ball.x = racket.x + racket.width / 2;
-    ball.y = racket.y - ball.height;
-    ball.dx = (-65 + rand() % 130) / 65.;
-    ball.dy = 1 - abs(ball.dx);
+	for (int i = 0; i < ROWS; i++) {
 
-    for (int i = 0; i < ROWS; i++) {
+		for (int j = 0; j < COLUMN; j++) {
 
-        for (int j = 0; j < COLUMN; j++) {
+			blocks[i][j].width = window.width / ROWS;
+			blocks[i][j].height = window.height / 2 / COLUMN;
+			blocks[i][j].hBitmap = (HBITMAP)LoadImageA(NULL, "cube.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+			blocks[i][j].x = blocks[i][j].width * i;
+			blocks[i][j].y = blocks[i][j].height * j;
+		}
 
-            blocks[i][j].width = window.width / ROWS;
-            blocks[i][j].height = window.height / 2 / COLUMN;
-            blocks[i][j].hBitmap = (HBITMAP)LoadImageA(NULL, "cube.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-            blocks[i][j].x = blocks[i][j].width * i;
-            blocks[i][j].y = blocks[i][j].height * j;
-            blocks[i][j].ischezni = true;
-
-        }
-
-    }
+	}
 }
 
-void InitWindow() {
+bool Colussion(int i, int  j) {
+	/*blocks[i][j].ischezni = true;*/
+	for (int z = 0; z < 200; z++)
+	{
+		float ics;
+		float igrik;
+		float gipoz;
+		float koefX;
+		float koefY;
+		ics = ball.dx * ball.speed;
+		igrik = ball.dy * ball.speed;
+		gipoz = sqrt(ics * ics + igrik * igrik);
+		koefX = ics / gipoz;
+		koefY = igrik / gipoz;
 
-    RECT r;
-    GetClientRect(window.hWnd, &r);
-    window.device_context = GetDC(window.hWnd);
-    window.width = r.right - r.left;
-    window.height = r.bottom - r.top;
-    window.context = CreateCompatibleDC(window.device_context);
-    SelectObject(window.context, CreateCompatibleBitmap(window.device_context, window.width, window.height));
-    GetClientRect(window.hWnd, &r);
+		float pixx = koefX * z + ball.x;
+		float pixy = koefY * -z + ball.y;
 
+		SetPixel(window.dev_cont, pixx, pixy, RGB(255, 0, 0));
+		if (
+			pixx > blocks[i][j].x &&
+			pixx < blocks[i][j].x + blocks[i][j].width &&
+			pixy > blocks[i][j].y &&
+			pixy < blocks[i][j].y + blocks[i][j].height
+			) {
+			float L = blocks[i][j].x + blocks[i][j].width - pixx;
+			float R = pixx - blocks[i][j].x;
+			float U = blocks[i][j].y + blocks[i][j].height - pixy;
+			float D = pixy - blocks[i][j].y;
+
+			float owerX;
+			float owerY;
+			owerX = min(L, R);
+			owerY = min(U, D);
+
+			if (blocks[i][j].ischezni == true) {
+
+				if (owerX < owerY) {
+					if (L < R) {
+						/*ball.dx *= -1;*/
+						blocks[i][j].ischezni;
+					}
+
+					if (R < L) {
+						/*ball.dx *= -1;*/
+						blocks[i][j].ischezni;
+					}
+				}
+
+				if (owerY < owerX) {
+					if (U < D) {
+						/*ball.dy *= -1;*/
+						blocks[i][j].ischezni;
+					}
+
+					if (D < U) {
+						/*ball.dy *= -1;*/
+						blocks[i][j].ischezni;
+					}
+				}
+			}
+			return true;
+		}
+		/*return false;*/
+	}
 }
 
-void ShowBitMap(HDC hDC, int x, int y, int w, int h, HBITMAP picture)
-{
-    HDC hMemDC;
-    hMemDC = CreateCompatibleDC(hDC);
+void Obey() {
+	if (GetAsyncKeyState('D')) {
+		racket.x += racket.speed;
+	}
 
-    HBITMAP hOld = (HBITMAP)SelectObject(hMemDC, picture);
-    if (hOld) {
-        BITMAP bm;
-        GetObject(picture, sizeof(BITMAP), &bm);
-
-        StretchBlt(hDC, x, y, w, h, hMemDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
-        SelectObject(hMemDC, hOld);
-
-        DeleteObject(hOld);
-    }
-    DeleteDC(hMemDC);
-}
-
-void colll(int i,int  j)
-{
-    blocks[i][j].ischezni2 = true;
-    for (int z = 0; z < 200; z++)
-    {
-        float ics;
-        float igrik;
-        float gipoz;
-        float koefX;
-        float koefY;
-        ics = ball.dx * ball.speed;
-        igrik = ball.dy * ball.speed;
-        gipoz = sqrt(ics * ics + igrik * igrik);
-        koefX = ics / gipoz;
-        koefY = igrik / gipoz;
-
-        float pixx = koefX * z + ball.x;
-        float pixy = koefY * -z + ball.y;
-        ball.pixelX = pixx;
-        ball.pixelY = pixy;
-        
-        
-        if (
-            pixx > blocks[i][j].x &&
-            pixx < blocks[i][j].x + blocks[i][j].width && 
-            pixy > blocks[i][j].y &&
-            pixy < blocks[i][j].y + blocks[i][j].height
-            ) {
-            blocks[i][j].ischezni2 = false;
-            float L = blocks[i][j].x + blocks[i][j].width - ball.pixelX;
-            float R = ball.pixelX - blocks[i][j].x;
-            float U = blocks[i][j].y + blocks[i][j].height - ball.pixelY;
-            float D = ball.pixelY  - blocks[i][j].y;
-
-            float owerX;
-            float owerY;
-            owerX = min(L, R);
-            owerY = min(U, D);
-
-            if (blocks[i][j].ischezni == true) {
-              
-                if (owerX < owerY) {
-                    if (L < R) {
-                        //ball.dx *= -1;
-                        blocks[i][j].ischezni;
-                    }
-
-                    if (R < L) {
-                        //ball.dx *= -1;
-                        blocks[i][j].ischezni;
-                    }
-                }
-
-                if (owerY < owerX) {
-                    if (U < D) {
-                        //ball.dy *= -1;
-                        blocks[i][j].ischezni;
-                    }
-
-                    if (D < U) {
-                        //ball.dy *= -1;
-                        blocks[i][j].ischezni;
-                    }
-                }
-            }
-            break;
-        }
-        else
-        {
-            SetPixel(window.device_context, pixx, pixy, RGB(255, 0, 0));
-        }
-
-    }
-}
-
-void Show()
-{
-    
-    ShowBitMap(window.context, 0, 0, window.width, window.height, window.hBack);
-    ShowBitMap(window.context, ball.x, ball.y, ball.width, ball.height, ball.hBitmap);
-    ShowBitMap(window.context, racket.x, racket.y, racket.width, racket.height, racket.hBitmap);
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLUMN; j++) {
-            if (blocks[i][j].ischezni == true) {
-                colll(i, j);
-                ShowBitMap(window.context, blocks[i][j].x, blocks[i][j].y, blocks[i][j].width, blocks[i][j].height, blocks[i][j].hBitmap);
-            }
-        }
-    }
-}
-
-void Obey()
-{
-    if (GetAsyncKeyState('D')) {
-        racket.x += racket.speed;
-    }
-
-    if (GetAsyncKeyState('A')) {
-        racket.x -= racket.speed;
-    }
+	if (GetAsyncKeyState('A')) {
+		racket.x -= racket.speed;
+	}
 }
 
 void GetCursorPos()
 {
-    POINT mousePos;
-    if (GetCursorPos(&mousePos)) {
-        ball.x = mousePos.x;
-        ball.y = mousePos.y;
-    }
+	POINT mousePos;
+	if (GetCursorPos(&mousePos)) {
+		ball.x = mousePos.x;
+		ball.y = mousePos.y;
+	}
 }
 
-void Collusion()
-{
-    if (racket.x < 0) {
-        racket.x = 0;
-    }
-
-    if (racket.x > window.width - racket.width) {
-        racket.x = window.width - racket.width;
-    }
-
-    if (ball.x < 0 || ball.x > window.width - ball.width) {
-        ball.dx *= -1;
-    }
-
-    if (ball.y < 0) {
-        ball.dy *= -1;
-    }
-
-    if (ball.y > window.height) {
-        ball.x = racket.x + racket.width / 2;
-        ball.y = racket.y - ball.height;
-        ball.dy = (35 + rand() % 65) / 100.;
-        ball.dx = ball.dy - 1;
-        gameAction = false;
-    }
-
-    if (racket.y < ball.y + ball.height && ball.x < racket.x + racket.width / 2 && ball.x > racket.x) {
-        ball.dx += -0.5;
-        ball.dy *= -1;
-    }
-
-    if (racket.y < ball.y + ball.height && ball.x > racket.x + racket.width / 2 && ball.x < racket.x + racket.width) {
-        ball.dx += 0.5;
-        ball.dy *= -1;
-    }
-
-
-
-    for (int i = 0; i < ROWS; i++) {
-
-        for (int j = 0; j < COLUMN; j++) {
-
-           /* colll(i,j);*/
-        }
-    }
+void Show() {
+	window.hBitmap = (HBITMAP)LoadImageA(NULL, "back.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+	ShowBitmap(window.contx, 0, 0, window.width, window.height, window.hBitmap);
+	ShowBitmap(window.contx, ball.x, ball.y, ball.width, ball.height, ball.hBitmap);
+	ShowBitmap(window.contx, racket.x, racket.y, racket.width, racket.height, racket.hBitmap);
+	for (int i = 0; i < ROWS; i++) {
+		for (int j = 0; j < COLUMN; j++) {
+			/*if (blocks[i][j].ischezni == true) {*/
+			ShowBitmap(window.contx, blocks[i][j].x, blocks[i][j].y, blocks[i][j].width, blocks[i][j].height, blocks[i][j].hBitmap);
+			//}
+		}
+	}
 }
 
-
-void ProcessBall()
+//обновление приложения
+void UpdateApp()
 {
-    ball.y -= ball.dy * ball.speed;
-    ball.x += ball.dx * ball.speed;
+	/*Show();*/
+	GetCursorPos();
+	for (int i = 0; i < ROWS; i++) {
+
+		for (int j = 0; j < COLUMN; j++) {
+			/*Colussion(i, j);*/
+			if (Colussion(i, j))
+				break;
+		}
+	}
 }
 
-void ProcessGame()
+//обработка команд устройств ввода
+void UpdateKeyCode()
 {
-    if (gameAction == true) {
-        InvalidateRect(window.hWnd, 0, true);
-        Obey();
-        Collusion();
-        ProcessBall();
-        GetCursorPos();
-
-    }
+	//выход из приложения на ESC
+	if (GetAsyncKeyState(VK_ESCAPE))
+	{
+		window.msg.message = WM_QUIT;
+	}
 }
 
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+//обновление изображений
+void UpdateImage()
 {
-    srand(time(NULL)%10);
-    const wchar_t CLASS_NAME[] = L"ABOBA";
-
-    WNDCLASS wc = { };
-
-    wc.lpfnWndProc = WndProc;
-    wc.lpszClassName = CLASS_NAME;
-    wc.hInstance = hInstance;
-
-    RegisterClass(&wc);
-
-    // Create the window.
-
-    window.hWnd = CreateWindowEx(
-        0,                              // Optional window styles.
-        CLASS_NAME,                     // Window class
-        L"ABOBA",                       // Window text
-        WS_POPUP,            // Window style
-
-        // Size and position
-        CW_USEDEFAULT, CW_USEDEFAULT, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
-
-        NULL,       // Parent window    
-        NULL,       // Menu
-        hInstance,  // Instance handle
-        NULL        // Additional application data
-    );
-
-
-
-    if (window.hWnd == NULL)
-    {
-        return 0;
-    }
-    InitWindow();
-    InitGame();
-    ShowWindow(window.hWnd, nCmdShow);
-    //Sleep(16);
-    SetTimer(window.hWnd, 1, 16, NULL);
-    // Run the message loop.
-
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-
-       
-    }
-
-    return 0;
+	BitBlt(window.dev_cont, 0, 0, window.width, window.height, window.contx, 0, 0, SRCCOPY);
+	//отрисовка заднего фона
+	/*ShowBitmap(window.contx, 0, 0, window.width, window.height, (HBITMAP)LoadImageA(NULL, "back.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE));*/
+	Show();
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+//вход в программу
+int CALLBACK WinMain(
+	HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPSTR lpCmdLine,
+	int nShowCmd)
 {
-    switch (uMsg)
-    {
-    case WM_TIMER:
+	InitWindow();
+	InitApp();
 
-        //if (wParam == 1) {
-        ProcessGame();
-        //}
+	//основной цикл обновления приложения
+	while (window.gbool)
+	{
+		//обработка соощений для окна
+		while (PeekMessage(&window.msg, NULL, 0, 0, PM_REMOVE))
+		{
+			UpdateKeyCode();
 
+			//отбработка сообщений
+			if (window.msg.message == WM_QUIT)
+			{
+				window.gbool = false;
+				break;
+			}
+			TranslateMessage(&window.msg);
+			DispatchMessage(&window.msg);
+		}
 
-    case WM_KEYDOWN:
+		UpdateImage();
+		UpdateApp();
 
-        if (GetAsyncKeyState(VK_SPACE)) {
-            gameAction = true;
-        }
-        if (GetAsyncKeyState(VK_ESCAPE)) {
-            PostQuitMessage(0);
-        }
-
-    case WM_CREATE:
-
-        window.hBack = (HBITMAP)LoadImageA(NULL, "back.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-
-        break;
-
-    case WM_DESTROY:
-        PostQuitMessage(0);
-
-    case WM_SIZE:
-    {
-        window.width = LOWORD(lParam);
-        window.height = HIWORD(lParam);
-        racket.x = window.width / 2 - racket.width / 2;
-        racket.y = window.height - racket.height;
-        ball.x = racket.x + racket.width / 2;
-        ball.y = racket.y - ball.height;
-
-        InvalidateRect(hwnd, 0, true);
-    }
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        window.device_context = BeginPaint(hwnd, &ps);
-
-        //FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-        Show();
-        BitBlt(window.device_context, 0, 0, window.width, window.height, window.context, 0, 0, SRCCOPY);
-        EndPaint(hwnd, &ps);
-        /*ProcessGame();*/
-    }
-    return 0;
-
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		//задержка обновления
+		Sleep(16);
+	}
+	return 0;
 }
